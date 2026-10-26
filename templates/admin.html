@@ -1,0 +1,276 @@
+{% extends "base.html" %}
+{% block body %}
+{% if error %}<p class="error">{{ error }}</p>{% endif %}
+{% if notice %}<p class="ok">{{ notice }}</p>{% endif %}
+
+{% if admin_section == 'users' %}
+<h1 class="page-title">用户</h1>
+<p class="note page-note">在这里创建、启用或删除考试用户，这些变更会同步到 DCE。不能删除当前登录用户和管理员。</p>
+<section class="panel" style="padding:0">
+  <div class="toolbar">
+    <input type="search" placeholder="搜索用户名" oninput="filterRows(this, 'user-table')">
+    <button type="button" onclick="openDialog('create-user')">创建用户</button>
+  </div>
+  <div class="table-wrap"><table id="user-table">
+    <thead><tr><th>用户名</th><th>来源</th><th>角色</th><th>已绑定权限包</th><th>状态</th><th class="ops">操作</th></tr></thead>
+    <tbody>
+    {% for user in users %}
+      <tr>
+        <td>{{ user.username }}</td>
+        <td>{{ user.source }}</td>
+        <td>{% if user.is_admin %}管理员{% else %}普通用户{% endif %}</td>
+        <td>{{ user.permission_package_name or '—' }}</td>
+        <td>{% if user.enabled %}启用{% else %}禁用{% endif %}</td>
+        <td class="ops actions">
+          <button class="secondary" type="button" onclick="openDialog('edit-user-{{ user.id }}')">编辑</button>
+          <form class="inline-form" method="post" action="/admin/users/{{ user.id }}/delete" onsubmit="return confirm('将同步删除 DCE 平台账号及该用户的全部考试数据，此操作不可恢复。确认继续？')">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <button class="danger" type="submit" {% if user.id == current_user.id or user.is_admin %}disabled title="{% if user.id == current_user.id %}不能删除当前登录用户{% else %}管理员用户不能删除{% endif %}"{% endif %}>删除</button>
+          </form>
+          <dialog id="edit-user-{{ user.id }}">
+            <div class="dialog-head"><h2>编辑用户</h2><button class="icon-btn" type="button" onclick="this.closest('dialog').close()">×</button></div>
+            <div class="dialog-body">
+              <form class="dialog-form" method="post" action="/admin/users/{{ user.id }}/update">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                <p class="note">权限包和账户状态都会同步到 DCE；禁用后该账户不能登录考试系统和 DCE 5。</p>
+                <label for="user-package-{{ user.id }}">权限包</label>
+                <select id="user-package-{{ user.id }}" name="permission_package_id">
+                  <option value="" {% if not user.permission_package_id %}selected{% endif %}>不绑定权限包</option>
+                  {% for package in packages %}<option value="{{ package.id }}" {% if package.id == user.permission_package_id %}selected{% endif %}>{{ package.name }} — {{ package.target_summary }}</option>{% endfor %}
+                </select>
+                {% if user.id == current_user.id %}
+                <input type="hidden" name="enabled" value="on">
+                <label class="row"><input type="checkbox" checked disabled>启用账户（不能禁用当前登录用户）</label>
+                {% else %}
+                <label class="row"><input type="checkbox" name="enabled" {% if user.enabled %}checked{% endif %}>启用账户</label>
+                {% endif %}
+                <p><button type="submit">保存修改</button></p>
+              </form>
+            </div>
+          </dialog>
+      </tr>
+    {% else %}<tr><td colspan="6">暂无用户</td></tr>{% endfor %}
+    </tbody>
+  </table></div>
+  <div class="table-foot">共 {{ users|length }} 项</div>
+</section>
+<dialog id="create-user">
+  <div class="dialog-head"><h2>创建 DCE 用户</h2><button class="icon-btn" type="button" onclick="this.closest('dialog').close()">×</button></div>
+  <div class="dialog-body">
+    <form class="dialog-form" method="post" action="/admin/users">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <p class="note">用户会同步创建到 DCE；可在创建时直接绑定一个权限包。</p>
+      <label for="username">用户名</label>
+      <input id="username" name="username" required placeholder="zhangsan">
+      <label for="password">一次性初始密码</label>
+      <input id="password" name="password" type="password" required minlength="8">
+      <label class="row"><input type="checkbox" name="temporary" checked>首次登录必须修改密码</label>
+      <label for="new-user-package">权限包</label>
+      <select id="new-user-package" name="permission_package_id">
+        <option value="">暂不绑定</option>
+        {% for package in packages %}<option value="{{ package.id }}">{{ package.name }} — {{ package.target_summary }}</option>{% endfor %}
+      </select>
+      <p><button type="submit">创建用户</button></p>
+    </form>
+  </div>
+</dialog>
+
+{% elif admin_section == 'packages' %}
+<h1 class="page-title">权限包</h1>
+<p class="note page-note">权限包只映射已有的 DCE 用户组，不会新建或修改用户组。已被考试任务或用户引用的权限包不能换组或删除。</p>
+<section class="panel">
+  <div class="toolbar">
+    <input type="search" placeholder="搜索权限包" oninput="filterRows(this, 'package-table')" title="只改考试系统里的映射，不改 DCE 用户组">
+    <button type="button" onclick="openDialog('create-package')" {% if dce_mode == 'real' and not available_dce_group_count %}disabled{% endif %}>创建权限包</button>
+  </div>
+  <div class="table-wrap"><table id="package-table">
+    <thead><tr><th>名称</th><th>DCE 用户组</th><th>权限摘要</th><th>引用</th><th class="ops">操作</th></tr></thead>
+    <tbody>
+    {% for item in packages %}
+      <tr>
+        <td>{{ item.name }}{% if item.system_managed %}<span class="tag">默认</span>{% endif %}</td>
+        <td title="{{ item.dce_group_id }}">{{ item.dce_group_name }}</td>
+        <td>{{ item.target_summary }}</td>
+        <td>{{ item.assignment_count }} 个任务 / {{ item.user_binding_count }} 个用户</td>
+        <td class="ops actions">
+          <button class="secondary" type="button" onclick="openDialog('edit-package-{{ item.id }}')">编辑</button>
+          <form class="inline-form" method="post" action="/admin/permission-packages/{{ item.id }}/delete" onsubmit="return confirm('仅删除考试系统内的权限包映射，不会删除 DCE 用户组。确认继续？')">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <button class="danger" type="submit" {% if item.system_managed or item.assignment_count or item.user_binding_count %}disabled title="{% if item.system_managed %}系统默认权限包不能删除{% elif item.assignment_count %}已有考试任务引用，不能删除{% else %}已有用户绑定，不能删除{% endif %}"{% endif %}>删除</button>
+          </form>
+          <dialog id="edit-package-{{ item.id }}">
+            <div class="dialog-head"><h2>编辑权限包</h2><button class="icon-btn" type="button" onclick="this.closest('dialog').close()">×</button></div>
+            <div class="dialog-body">
+              <form class="dialog-form" method="post" action="/admin/permission-packages/{{ item.id }}/update">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                <label for="package-name-{{ item.id }}">权限包名称</label>
+                <input id="package-name-{{ item.id }}" name="name" value="{{ item.name }}" required>
+                {% if dce_mode == 'real' and not item.system_managed and not item.assignment_count and not item.user_binding_count %}
+                <label for="package-group-{{ item.id }}">DCE 用户组</label>
+                <select id="package-group-{{ item.id }}" name="dce_group_id" required>
+                  {% for group in dce_groups %}
+                  <option value="{{ group.id }}" {% if group.id == item.dce_group_id %}selected{% endif %} {% if group.id in mapped_group_ids and group.id != item.dce_group_id %}disabled{% endif %}>{{ group.name }}{% if group.id in mapped_group_ids and group.id != item.dce_group_id %}（已被其他权限包使用）{% endif %}</option>
+                  {% endfor %}
+                </select>
+                {% else %}
+                <input type="hidden" name="dce_group_id" value="{{ item.dce_group_id }}">
+                <p class="muted">绑定组：{{ item.dce_group_name }}（{% if item.system_managed %}系统默认权限包{% elif item.assignment_count %}已有任务引用{% else %}已有用户绑定{% endif %}，不可更换）</p>
+                {% endif %}
+                <label for="package-summary-{{ item.id }}">权限摘要</label>
+                <input id="package-summary-{{ item.id }}" name="summary" value="{{ item.target_summary }}">
+                <p><button type="submit">保存修改</button></p>
+              </form>
+            </div>
+          </dialog>
+        </td>
+      </tr>
+    {% else %}<tr><td colspan="5">暂无权限包</td></tr>{% endfor %}
+    </tbody>
+  </table></div>
+  <div class="table-foot">共 {{ packages|length }} 项</div>
+</section>
+<dialog id="create-package">
+  <div class="dialog-head"><h2>{% if dce_mode == 'real' %}从 DCE 用户组创建权限包{% else %}创建 Mock 权限包{% endif %}</h2><button class="icon-btn" type="button" onclick="this.closest('dialog').close()">×</button></div>
+  <div class="dialog-body">
+    <form class="dialog-form" method="post" action="/admin/permission-packages">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      {% if dce_mode == 'real' %}<p class="note">用户通过准入考试后会被加入所选用户组。这里只建立映射，不会新建或修改平台用户组。</p>{% endif %}
+      <label for="package_name">权限包名称</label><input id="package_name" name="name" required>
+      {% if dce_mode == 'real' %}
+      <label for="dce_group_id">平台当前用户组</label>
+      <select id="dce_group_id" name="dce_group_id" required {% if not available_dce_group_count %}disabled{% endif %}>
+        <option value="" selected disabled>请选择平台用户组</option>
+        {% for group in dce_groups %}
+          <option value="{{ group.id }}" {% if group.id in mapped_group_ids %}disabled{% endif %}>{{ group.name }}{% if group.description %} — {{ group.description }}{% endif %}{% if group.id in mapped_group_ids %}（已创建权限包）{% endif %}</option>
+        {% endfor %}
+      </select>
+      {% else %}
+      <label for="group_name">对应 Mock DCE 用户组名</label><input id="group_name" name="group_name" required>
+      {% endif %}
+      <label for="summary">权限摘要</label><input id="summary" name="summary">
+      <p><button type="submit" {% if dce_mode == 'real' and not available_dce_group_count %}disabled{% endif %}>创建权限包</button></p>
+    </form>
+  </div>
+</dialog>
+
+{% elif admin_section == 'audits' %}
+<h1 class="page-title">审计</h1>
+<p class="note page-note">这里记录创建用户、下发考试、授权和删除等操作。记录只能查看，不能修改或删除。</p>
+<section class="panel" style="padding:0">
+  <div class="toolbar">
+    <input type="search" placeholder="搜索动作或操作者" oninput="filterRows(this, 'audit-table')">
+  </div>
+  <div class="table-wrap"><table id="audit-table">
+    <thead><tr><th>时间</th><th>操作者</th><th>动作</th><th>对象</th><th>结果</th></tr></thead>
+    <tbody>
+    {% for item in audits %}
+      <tr><td>{{ item.created_at }}</td><td>{{ item.actor_name or 'system' }}</td><td>{{ item.action }}</td><td>{{ item.target_type }} / {{ item.target_id }}</td><td>{{ item.result }}</td></tr>
+    {% else %}<tr><td colspan="5">暂无审计记录</td></tr>{% endfor %}
+    </tbody>
+  </table></div>
+  <div class="table-foot">共 {{ audits|length }} 项</div>
+</section>
+
+{% else %}
+<h1 class="page-title">考试任务</h1>
+<p class="note page-note">用「下发培训考试」给已有用户安排考试。只有待考试且尚未授权的任务可以编辑或删除；通过后系统会把用户加入所选权限包对应的 DCE 用户组。</p>
+<section class="panel" style="padding:0">
+  <div class="toolbar">
+    <input type="search" placeholder="搜索用户或试卷" oninput="filterRows(this, 'task-table')">
+    <div class="toolbar-actions">
+      <button type="button" onclick="openDialog('assign-training')">下发培训考试</button>
+    </div>
+  </div>
+  <div class="table-wrap"><table id="task-table">
+    <thead><tr><th>用户</th><th>类型</th><th>试卷</th><th>权限包</th><th>考试状态</th><th>授权</th><th class="ops">操作</th></tr></thead>
+    <tbody>
+    {% for item in assignments %}
+    <tr>
+      <td>{{ item.username }}</td>
+      <td>{% if item.purpose == 'TRAINING_ONLY' %}培训考试{% elif item.purpose == 'ONBOARDING_GATE' %}准入考试{% else %}{{ item.purpose }}{% endif %}</td>
+      <td>{{ item.template_name }} v{{ item.template_version }}</td>
+      <td>{{ item.package_name or '—' }}</td>
+      <td class="status" title="{{ item.status }}">
+        {% if item.status == 'PENDING' %}待考试
+        {% elif item.status in ['PASSED_PENDING_GRANT', 'ACTIVE', 'COMPLETED'] %}已通过
+        {% elif item.status in ['LOCKED', 'EXPIRED'] %}未通过
+        {% else %}{{ item.status }}{% endif %}
+      </td>
+      <td class="status">
+        {% if item.grant_job_state == 'QUEUED' %}排队
+        {% elif item.grant_job_state == 'RUNNING' %}处理中
+        {% elif item.grant_job_state == 'SUCCEEDED' %}已开通
+        {% elif item.grant_job_state == 'RETRYABLE_FAILED' %}可重试失败
+        {% elif item.grant_job_state == 'PERMANENT_FAILED' %}开通失败
+        {% else %}<span class="quiet">—</span>{% endif %}
+        {% if item.last_error_detail %}<br><span class="error">{{ item.last_error_detail }}</span>{% endif %}
+      </td>
+      <td class="ops actions">
+        {% if item.status == 'PASSED_PENDING_GRANT' and item.grant_job_state in ['RETRYABLE_FAILED', 'PERMANENT_FAILED'] %}
+        <form class="inline-form" method="post" action="/admin/assignments/{{ item.id }}/retry-grant">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+          <button type="submit">重试授权</button>
+        </form>
+        {% endif %}
+        <button class="secondary" type="button" onclick="openDialog('edit-task-{{ item.id }}')" {% if item.status != 'PENDING' %}disabled title="只有待考试任务可以修改"{% endif %}>编辑</button>
+        <form class="inline-form" method="post" action="/admin/assignments/{{ item.id }}/delete" onsubmit="return confirm('确认删除这个待考试任务{% if item.attempt_count %}及其 {{ item.attempt_count }} 次答题记录{% endif %}？')">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+          <button class="danger" type="submit" {% if item.status != 'PENDING' or item.grant_job_state %}disabled title="只有未进入授权流程的待考试任务可以删除"{% endif %}>删除</button>
+        </form>
+        <dialog id="edit-task-{{ item.id }}">
+          <div class="dialog-head"><h2>编辑考试任务</h2><button class="icon-btn" type="button" onclick="this.closest('dialog').close()">×</button></div>
+          <div class="dialog-body">
+            <form class="dialog-form" method="post" action="/admin/assignments/{{ item.id }}/update"{% if item.attempt_count %} onsubmit="return confirm('该任务已有 {{ item.attempt_count }} 次答题记录；若更换用户或试卷，旧答题记录将被清空。确认保存？')"{% endif %}>
+              <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+              <p class="note">待考试任务可修改。更换用户或试卷会清空已有答题记录；保存试卷后，分数、时长和重试次数会同步为新试卷规则。</p>
+              <label for="task-user-{{ item.id }}">用户</label>
+              <select id="task-user-{{ item.id }}" name="user_id" required>
+                {% for user in users %}{% if user.enabled %}<option value="{{ user.id }}" {% if user.id == item.user_id %}selected{% endif %}>{{ user.username }}</option>{% endif %}{% endfor %}
+              </select>
+              <label for="task-template-{{ item.id }}">试卷模板</label>
+              <select id="task-template-{{ item.id }}" name="template_id" required>
+                {% for template in templates %}<option value="{{ template.id }}" {% if template.id == item.exam_template_id %}selected{% endif %}>{{ template.name }} v{{ template.version }}</option>{% endfor %}
+              </select>
+              <label for="task-package-{{ item.id }}">权限包</label>
+              <select id="task-package-{{ item.id }}" name="permission_package_id" required>
+                {% for package in packages %}<option value="{{ package.id }}" {% if package.id == item.permission_package_id %}selected{% endif %}>{{ package.name }} — {{ package.target_summary }}</option>{% endfor %}
+              </select>
+              <label for="task-deadline-{{ item.id }}">截止时间</label>
+              <input id="task-deadline-{{ item.id }}" name="deadline" type="datetime-local" value="{% if item.deadline %}{{ item.deadline[:16] }}{% endif %}">
+              <p><button type="submit">保存修改</button></p>
+            </form>
+          </div>
+        </dialog>
+      </td>
+    </tr>
+    {% else %}<tr><td colspan="7">暂无考试任务</td></tr>{% endfor %}
+    </tbody>
+  </table></div>
+  <div class="table-foot">共 {{ assignments|length }} 项</div>
+</section>
+<dialog id="assign-training">
+  <div class="dialog-head"><h2>主动下发培训考试</h2><button class="icon-btn" type="button" onclick="this.closest('dialog').close()">×</button></div>
+  <div class="dialog-body">
+    <form class="dialog-form" method="post" action="/admin/assignments">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <p class="note">考试通过后，系统会将用户加入权限包对应的 DCE 用户组并自动获得相应权限。</p>
+      <label for="training_user_id">已有用户</label>
+      <select id="training_user_id" name="user_id" required>
+        {% for user in users %}{% if user.enabled %}<option value="{{ user.id }}">{{ user.username }}</option>{% endif %}{% endfor %}
+      </select>
+      <label for="training_template_id">试卷模板</label>
+      <select id="training_template_id" name="template_id" required>
+        {% for item in templates %}<option value="{{ item.id }}">{{ item.name }} v{{ item.version }}</option>{% endfor %}
+      </select>
+      <label for="training_permission_package_id">通过后开通的权限包</label>
+      <select id="training_permission_package_id" name="permission_package_id" required>
+        {% for package in packages %}<option value="{{ package.id }}">{{ package.name }} — {{ package.target_summary }}</option>{% endfor %}
+      </select>
+      <label for="training_deadline">截止时间</label>
+      <input id="training_deadline" name="deadline" type="datetime-local">
+      <p><button type="submit">下发培训考试</button></p>
+    </form>
+  </div>
+</dialog>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,57 @@
+{% extends "base.html" %}
+{% block body %}
+<h1 class="page-title">试卷</h1>
+<p class="note page-note">已发布试卷的题目保持不可变；需要调整时复制为新草稿版本。没有考试任务引用的试卷可以删除。</p>
+{% if error %}<p class="error">{{ error }}</p>{% endif %}
+{% if notice %}<p class="ok">{{ notice }}</p>{% endif %}
+
+<div class="grid">
+  <form method="post" action="/admin/exam-templates">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <h2>新建空白试卷</h2>
+    <label for="name">试卷名称</label><input id="name" name="name" required maxlength="120">
+    <div class="row">
+      <div><label for="pass_score">及格分</label><input id="pass_score" name="pass_score" type="number" min="1" max="100" value="80" required></div>
+      <div><label for="duration_minutes">时长（分钟）</label><input id="duration_minutes" name="duration_minutes" type="number" min="1" max="240" value="30" required></div>
+      <div><label for="max_attempts">最大尝试次数</label><input id="max_attempts" name="max_attempts" type="number" min="1" max="20" value="3" required></div>
+    </div>
+    <label class="row"><input type="checkbox" name="critical_must_all_correct" checked> 高危操作题必须全部答对</label>
+    <p><button type="submit">创建草稿</button></p>
+  </form>
+
+  <form method="post" action="/admin/exam-templates/upload" enctype="multipart/form-data">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <h2>上传试卷 JSON</h2>
+    <p class="note">支持本系统下载的 schema_version=1 格式，最大 2 MiB。上传后始终保存为新的草稿版本，不会覆盖现有试卷。</p>
+    <label for="upload">JSON 文件</label><input id="upload" name="upload" type="file" accept="application/json,.json" required>
+    <p><button type="submit">上传并校验</button></p>
+  </form>
+</div>
+
+<section class="card">
+  <h2>全部试卷</h2>
+  <div class="table-wrap"><table>
+    <tr><th>名称/版本</th><th>状态</th><th>题目</th><th>规则</th><th>任务引用</th><th>操作</th></tr>
+    {% for item in exam_templates %}
+    <tr>
+      <td>{{ item.name }} v{{ item.version }}</td>
+      <td><span class="badge">{% if item.status == 'DRAFT' %}草稿{% elif item.status == 'PUBLISHED' %}已发布{% elif item.status == 'ARCHIVED' %}已归档{% else %}{{ item.status }}{% endif %}</span></td>
+      <td>{{ item.actual_question_count }} 道</td>
+      <td>{{ item.pass_score }} 分 / {{ item.duration_minutes }} 分钟 / {{ item.max_attempts }} 次</td>
+      <td>{{ item.assignment_count }}</td>
+      <td><div class="actions">
+        <a class="linkbtn" href="/admin/exam-templates/{{ item.id }}">{% if item.status == 'DRAFT' %}在线编辑{% else %}查看{% endif %}</a>
+        <a class="linkbtn secondary" href="/admin/exam-templates/{{ item.id }}/download">下载 JSON</a>
+        <form class="inline-form" method="post" action="/admin/exam-templates/{{ item.id }}/clone">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token }}"><button class="secondary" type="submit">复制为新版本</button>
+        </form>
+        <form class="inline-form" method="post" action="/admin/exam-templates/{{ item.id }}/delete" onsubmit="return confirm('删除后不可恢复。确认删除这个试卷？')">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+          <button class="danger" type="submit" {% if item.assignment_count %}disabled title="已有考试任务引用，不能删除"{% endif %}>删除</button>
+        </form>
+      </div></td>
+    </tr>
+    {% else %}<tr><td colspan="6">暂无试卷</td></tr>{% endfor %}
+  </table></div>
+</section>
+{% endblock %}

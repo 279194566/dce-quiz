@@ -1,0 +1,105 @@
+{% extends "base.html" %}
+{% macro question_fields(question, prefix) %}
+  <div class="row">
+    <div><label for="{{ prefix }}-type">题型</label><select id="{{ prefix }}-type" name="question_type" required>
+      {% for value, label in [('SINGLE','单选题'),('MULTIPLE','多选题'),('TRUE_FALSE','判断题')] %}
+      <option value="{{ value }}" {% if question and question.type == value %}selected{% endif %}>{{ label }}</option>
+      {% endfor %}
+    </select></div>
+    <div><label for="{{ prefix }}-category">分类</label><input id="{{ prefix }}-category" name="category" value="{{ question.category if question else '' }}" maxlength="120"></div>
+    <div><label class="row"><input type="checkbox" name="critical" {% if question and question.critical %}checked{% endif %}> 高危操作题</label></div>
+  </div>
+  <label for="{{ prefix }}-stem">题干</label><textarea id="{{ prefix }}-stem" name="stem" required>{{ question.stem if question else '' }}</textarea>
+  <label for="{{ prefix }}-options">选项（每行一个，顺序即选项序号）</label><textarea class="options" id="{{ prefix }}-options" name="options_text" required>{{ question.options | join('\n') if question else '' }}</textarea>
+  <label for="{{ prefix }}-correct">正确答案序号</label><input id="{{ prefix }}-correct" name="correct_options" value="{{ question.correct_options_display if question else '' }}" placeholder="单选填 1；多选填 1,2" required>
+  <label for="{{ prefix }}-explanation">答案解析</label><textarea id="{{ prefix }}-explanation" name="explanation">{{ question.explanation if question else '' }}</textarea>
+  <div class="row">
+    <div><label for="{{ prefix }}-source-url">文档来源 URL</label><input id="{{ prefix }}-source-url" name="source_url" value="{{ question.source_url if question else '' }}"></div>
+    <div><label for="{{ prefix }}-source-section">来源章节</label><input id="{{ prefix }}-source-section" name="source_section" value="{{ question.source_section if question else '' }}"></div>
+    <div><label for="{{ prefix }}-product-version">适用产品版本</label><input id="{{ prefix }}-product-version" name="product_version" value="{{ question.product_version if question else '' }}"></div>
+    <div><label for="{{ prefix }}-reviewer">审核人</label><input id="{{ prefix }}-reviewer" name="reviewer" value="{{ question.reviewer if question else '' }}"></div>
+  </div>
+{% endmacro %}
+{% block body %}
+<div class="row">
+  <div><h1>{{ template.name }} v{{ template.version }}</h1><p class="note"><span class="badge">{% if template.status == 'DRAFT' %}草稿{% elif template.status == 'PUBLISHED' %}已发布{% elif template.status == 'ARCHIVED' %}已归档{% else %}{{ template.status }}{% endif %}</span> · {{ template.actual_question_count }} 道题 · {{ template.assignment_count }} 个任务引用</p><p class="note">{% if template.status == 'DRAFT' %}草稿可以修改题目，确认后发布。发布后不能直接改，只能复制为新版本。{% else %}已发布试卷不能直接修改。需要调整时复制为新草稿；没有考试任务引用时可以删除。{% endif %}</p></div>
+  <div class="actions"><a class="linkbtn secondary" href="/admin/exam-templates">返回试卷列表</a><a class="linkbtn secondary" href="/admin/exam-templates/{{ template.id }}/download">下载 JSON</a></div>
+</div>
+{% if error %}<p class="error">{{ error }}</p>{% endif %}
+{% if notice %}<p class="ok">{{ notice }}</p>{% endif %}
+
+{% if template.status == 'DRAFT' %}
+<form method="post" action="/admin/exam-templates/{{ template.id }}/update">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+  <h2>基本设置</h2>
+  <label for="name">试卷名称</label><input id="name" name="name" value="{{ template.name }}" required maxlength="120">
+  <div class="row">
+    <div><label for="pass_score">及格分</label><input id="pass_score" name="pass_score" type="number" min="1" max="100" value="{{ template.pass_score }}" required></div>
+    <div><label for="duration_minutes">时长（分钟）</label><input id="duration_minutes" name="duration_minutes" type="number" min="1" max="240" value="{{ template.duration_minutes }}" required></div>
+    <div><label for="max_attempts">最大尝试次数</label><input id="max_attempts" name="max_attempts" type="number" min="1" max="20" value="{{ template.max_attempts }}" required></div>
+  </div>
+  <label class="row"><input type="checkbox" name="critical_must_all_correct" {% if template.critical_must_all_correct %}checked{% endif %}> 高危操作题必须全部答对</label>
+  <p><button type="submit">保存基本设置</button></p>
+</form>
+<div class="actions card">
+  <form class="inline-form" method="post" action="/admin/exam-templates/{{ template.id }}/publish" onsubmit="return confirm('发布后不能直接修改，只能复制为新版本。确认发布？')">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}"><button type="submit" {% if not questions %}disabled{% endif %}>发布试卷</button>
+  </form>
+  <form class="inline-form" method="post" action="/admin/exam-templates/{{ template.id }}/delete" onsubmit="return confirm('删除后不可恢复。确认删除这个试卷？')">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}"><button class="danger" type="submit">删除</button>
+  </form>
+</div>
+
+<form method="post" action="/admin/exam-templates/{{ template.id }}/questions">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+  <h2>新增题目</h2>
+  {{ question_fields(none, 'new-question') }}
+  <p><button type="submit">添加题目</button></p>
+</form>
+{% else %}
+<section class="card">
+  <h2>已发布版本</h2>
+  <p>已发布试卷不可直接修改，确保已有考试和判题结果保持一致。</p>
+  <form class="inline-form" method="post" action="/admin/exam-templates/{{ template.id }}/clone">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}"><button type="submit">复制为新草稿版本</button>
+  </form>
+  <form class="inline-form" method="post" action="/admin/exam-templates/{{ template.id }}/delete" onsubmit="return confirm('删除后不可恢复。确认删除这个试卷？')">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <button class="danger" type="submit" {% if template.assignment_count %}disabled title="已有考试任务引用，不能删除"{% endif %}>删除</button>
+  </form>
+</section>
+{% endif %}
+
+<section>
+  <h2>题目（{{ questions | length }}）</h2>
+  {% for question in questions %}
+  <div class="question-card">
+    <div class="row"><strong>{{ question.position }}. {{ question.stem }}</strong><span class="badge">{{ question.type }}</span>{% if question.critical %}<span class="critical">高危题</span>{% endif %}</div>
+    <p class="muted">分类：{{ question.category }}；正确答案：{{ question.correct_options_display }}；修订号：{{ question.revision }}</p>
+    {% if template.status == 'DRAFT' %}
+    <div class="actions">
+      <form class="inline-form" method="post" action="/admin/exam-templates/{{ template.id }}/questions/{{ question.id }}/move">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}"><input type="hidden" name="direction" value="up"><button class="secondary" type="submit" {% if loop.first %}disabled{% endif %}>上移</button>
+      </form>
+      <form class="inline-form" method="post" action="/admin/exam-templates/{{ template.id }}/questions/{{ question.id }}/move">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}"><input type="hidden" name="direction" value="down"><button class="secondary" type="submit" {% if loop.last %}disabled{% endif %}>下移</button>
+      </form>
+    </div>
+    <details><summary>在线修改</summary>
+      <form method="post" action="/admin/exam-templates/{{ template.id }}/questions/{{ question.id }}/update">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        {{ question_fields(question, 'question-' ~ question.id) }}
+        <p><button type="submit">保存题目</button></p>
+      </form>
+      <form class="inline-form" method="post" action="/admin/exam-templates/{{ template.id }}/questions/{{ question.id }}/delete" onsubmit="return confirm('确认从草稿中删除这道题？')">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}"><button class="danger" type="submit">删除题目</button>
+      </form>
+    </details>
+    {% else %}
+    <ol>{% for option in question.options %}<li>{{ option }}</li>{% endfor %}</ol>
+    <p>解析：{{ question.explanation or '—' }}</p>
+    {% endif %}
+  </div>
+  {% else %}<p class="muted">当前草稿还没有题目。</p>{% endfor %}
+</section>
+{% endblock %}

@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+{% block body %}
+<h1>开发身份入口</h1>
+<p class="note">这里模拟 DCE OIDC 登录。正式接入后，本页将替换为 DCE 登录跳转，用户不能自行输入或冒用用户名。</p>
+{% if error %}<p class="error">{{ error }}</p>{% endif %}
+{% if notice %}<p class="ok">{{ notice }}</p>{% endif %}
+<form method="post" action="/dev/login">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+  <label for="dce_user_id">选择 Mock DCE 身份</label>
+  <select id="dce_user_id" name="dce_user_id" required>
+    {% for user in users %}
+      <option value="{{ user.id }}">{{ user.username }}{% if user.id == 'mock-user-admin' %}（Quiz 管理员）{% endif %}</option>
+    {% endfor %}
+  </select>
+  <p><button type="submit">模拟 DCE 登录</button></p>
+</form>
+{% endblock %}

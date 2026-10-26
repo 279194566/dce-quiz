@@ -1,0 +1,71 @@
+{% extends "base.html" %}
+{% block body %}
+{% if error %}<p class="error">{{ error }}</p>{% endif %}
+{% if notice %}<p class="ok">{{ notice }}</p>{% endif %}
+
+{% if mode == 'list' %}
+  <h1 class="page-title">我的考试</h1>
+  <p class="note page-note">待考试的任务点「开始/继续答题」。考试通过后，刷新 DCE 登录即可使用新开通的权限。</p>
+  <section class="panel" style="padding:0"><div class="table-wrap"><table>
+    <tr><th>试卷</th><th>用途</th><th>权限包</th><th>状态</th><th>截止</th><th>操作</th></tr>
+    {% for item in assignments %}
+    <tr>
+      <td>{{ item.template_name }} v{{ item.template_version }}</td>
+      <td>{% if item.purpose == 'TRAINING_ONLY' %}培训权限考试{% elif item.purpose == 'ONBOARDING_GATE' %}新用户准入{% else %}直接激活{% endif %}</td>
+      <td>{{ item.package_name or '—' }}</td>
+      <td class="status">{% if item.status == 'PENDING' %}待考试{% elif item.status in ('PASSED_PENDING_GRANT', 'ACTIVE', 'COMPLETED') %}已通过{% elif item.status in ('LOCKED', 'EXPIRED') %}未通过{% else %}{{ item.status }}{% endif %}</td>
+      <td>{{ item.deadline or '—' }}</td>
+      <td>
+        {% if item.status == 'PENDING' %}
+        <form class="inline-form" method="post" action="/exam/{{ item.id }}/start">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+          <button type="submit">开始/继续答题</button>
+        </form>
+        {% elif item.status == 'PASSED_PENDING_GRANT' %}考试已通过，等待系统授权
+        {% elif item.status == 'ACTIVE' %}已激活；刷新 DCE 登录态后使用
+        {% elif item.status == 'COMPLETED' %}历史培训已完成
+        {% else %}—{% endif %}
+      </td>
+    </tr>
+    {% else %}<tr><td colspan="6">当前没有考试任务。</td></tr>{% endfor %}
+  </table></div></section>
+
+{% elif mode == 'attempt' %}
+  <h1>{{ attempt.template_name }}</h1>
+  <p class="note">第 {{ attempt.attempt_no }} 次尝试，及格线 {{ attempt.pass_score }}，限时 {{ attempt.duration_minutes }} 分钟。红线题答错时本次不通过。</p>
+  <form method="post" action="/attempt/{{ attempt.id }}/submit">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    {% for question in questions %}
+      <fieldset>
+        <legend>{{ loop.index }}. {{ question.stem }} {% if question.critical %}<span class="critical">[红线题]</span>{% endif %}{% if question.type == 'MULTIPLE' %}（多选）{% endif %}</legend>
+        {% for option in question.display_options %}
+          <label class="choice">
+            <input type="{% if question.type == 'MULTIPLE' %}checkbox{% else %}radio{% endif %}" name="q-{{ question.id }}" value="{{ option.original_index }}">
+            {{ option.text }}
+          </label>
+        {% endfor %}
+      </fieldset>
+    {% endfor %}
+    <p><button type="submit">交卷</button></p>
+  </form>
+
+{% elif mode == 'result' %}
+  <h1>考试结果</h1>
+  {% if attempt.passed %}
+    <p class="ok">得分 {{ attempt.score }}，考试通过。</p>
+  {% else %}
+    <p class="error">得分 {{ attempt.score }}，未通过。{% if attempt.critical_failed %}存在红线题错误。{% endif %}</p>
+  {% endif %}
+  <p>当前任务状态：<strong>{% if assignment.status == 'PENDING' %}待考试{% elif assignment.status in ('PASSED_PENDING_GRANT', 'ACTIVE', 'COMPLETED') %}已通过{% elif assignment.status in ('LOCKED', 'EXPIRED') %}未通过{% else %}{{ assignment.status }}{% endif %}</strong></p>
+  {% if assignment.status == 'PASSED_PENDING_GRANT' %}<p>考试已经通过，授权仍在处理；无需重新考试。</p>{% endif %}
+  {% if assignment.status == 'ACTIVE' %}
+    {% set group_name = assignment.permission_group_name or assignment.package_name %}
+    {% if dce_mode == 'mock' %}
+      <p>模拟环境已确认用户加入权限组「{{ group_name or '目标权限组' }}」。</p>
+    {% else %}
+      <p>已确认加入权限组「{{ group_name or '目标权限组' }}」。刷新 DCE 登录后即可使用新权限。</p>
+    {% endif %}
+  {% endif %}
+  <p><a class="linkbtn" href="/exam">返回我的考试</a></p>
+{% endif %}
+{% endblock %}

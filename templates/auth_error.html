@@ -1,0 +1,9 @@
+{% extends "base.html" %}
+{% block body %}
+<div class="card auth-error-card">
+  <h1>DCE 登录未完成</h1>
+  <p class="error">{{ error }}</p>
+  <p class="note">请重新进入 DCE 统一登录。如果问题持续出现，请联系平台管理员检查 OIDC 客户端和用户状态。</p>
+  <p><a class="linkbtn" href="/auth/login?switch=1">重新登录</a></p>
+</div>
+{% endblock %}

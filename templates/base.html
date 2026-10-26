@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>平台准入考试</title>
+  <style>
+    :root { color-scheme: light; }
+    * { box-sizing: border-box; }
+    body { margin: 0; min-height: 100vh; background: #f2f3f5; color: #1d2129; font: 13px/22px "Microsoft YaHei", "PingFang SC", "Segoe UI", sans-serif; }
+    a { color: #2f6bff; text-decoration: none; }
+    .topbar { height: 48px; background: #2c333d; color: #fff; display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 0 12px 0 20px; position: sticky; top: 0; z-index: 20; white-space: nowrap; }
+    .brand { display: flex; align-items: center; gap: 8px; flex: none; color: #fff; font-size: 14px; line-height: 22px; font-weight: 500; text-decoration: none; }
+    .brand svg { width: 16px; height: 16px; display: block; }
+    .top-actions { display: flex; align-items: center; gap: 2px; height: 48px; flex: none; color: #c9cdd4; }
+    .top-actions a, .top-actions button { display: inline-flex; align-items: center; height: 28px; padding: 0 10px; border: 0; border-radius: 4px; background: transparent; color: #c9cdd4; font-size: 12px; line-height: 20px; font-weight: 400; white-space: nowrap; }
+    .top-actions a:hover, .top-actions button:hover { color: #fff; background: rgba(255, 255, 255, .08); }
+    .top-actions form { display: flex; align-items: center; margin: 0; padding: 0; border: 0; background: none; }
+    .who { display: inline-flex; align-items: center; gap: 6px; height: 28px; margin-right: 8px; padding: 0 10px 0 3px; border-radius: 14px; background: rgba(255, 255, 255, .08); color: #fff; font-size: 12px; line-height: 20px; white-space: nowrap; }
+    .avatar { display: inline-flex; align-items: center; justify-content: center; width: 22px; height: 22px; border-radius: 50%; background: #4e5969; color: #fff; font-size: 12px; line-height: 1; flex: none; }
+    .shell { display: flex; align-items: stretch; min-height: calc(100vh - 48px); }
+    .sider { width: 200px; flex: none; background: #fff; border-right: 1px solid #e5e6eb; padding: 8px 0; }
+    .sider a { display: flex; align-items: center; height: 40px; margin: 0; padding: 0 16px 0 20px; border-radius: 0; color: #4e5969; font-size: 13px; line-height: 22px; text-decoration: none; }
+    .sider a svg { width: 16px; height: 16px; margin-right: 8px; flex: none; stroke: currentColor; fill: none; stroke-width: 1.2; stroke-linecap: round; stroke-linejoin: round; }
+    .sider a:hover { background: #f7f8fa; color: #1d2129; }
+    .sider a.active { background: #f2f3f5; color: #1d2129; font-weight: 500; }
+    .content { flex: 1; min-width: 0; padding: 16px 16px 24px; }
+    .content > h1, .page-title { font-size: 16px; line-height: 24px; font-weight: 500; margin: 0 0 16px; color: #1d2129; }
+    h2 { font-size: 14px; line-height: 22px; font-weight: 500; margin: 0 0 12px; }
+    h3 { font-size: 13px; }
+    p.note, .muted { color: #86909c; font-size: 12px; line-height: 20px; }
+    .page-note { margin: -8px 0 12px; }
+    .panel, form:not(.inline-form):not(.dialog-form), .card { background: #fff; border: 1px solid #e5e6eb; border-radius: 4px; box-shadow: 0 1px 2px rgba(31, 35, 41, .04); padding: 16px; margin: 0 0 16px; }
+    .panel { padding: 0; overflow: hidden; }
+    .topbar form { display: flex; margin: 0; padding: 0; border: 0; border-radius: 0; background: transparent; box-shadow: none; }
+    .toolbar { display: flex; justify-content: space-between; align-items: center; gap: 12px; min-height: 48px; padding: 12px 16px; border-bottom: 1px solid #f2f3f5; }
+    .toolbar input[type="search"] { width: 240px; max-width: 100%; height: 32px; border: 1px solid transparent; border-radius: 16px; background: #f2f3f5 url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' fill='none' stroke='%2386909c' stroke-width='1.4' stroke-linecap='round'%3E%3Ccircle cx='6' cy='6' r='4'/%3E%3Cpath d='M9.2 9.2 12 12'/%3E%3C/svg%3E") 12px 50% no-repeat; padding: 0 12px 0 32px; font-size: 12px; color: #1d2129; }
+    .toolbar input[type="search"]::placeholder { color: #c9cdd4; }
+    .toolbar input[type="search"]::-webkit-search-cancel-button { -webkit-appearance: none; }
+    .toolbar input[type="search"]:focus { outline: none; background-color: #fff; border-color: #2f6bff; }
+    .toolbar-actions { display: flex; gap: 8px; align-items: center; flex: none; }
+    .grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; align-items: start; }
+    label { display: block; margin: 12px 0 6px; font-size: 12px; font-weight: 400; color: #4e5969; }
+    input, select, textarea { width: 100%; max-width: 480px; height: 32px; padding: 0 8px; border: 1px solid #e5e6eb; border-radius: 4px; background: #fff; color: #1d2129; font: 12px/20px "Microsoft YaHei", "PingFang SC", sans-serif; }
+    textarea { height: auto; padding: 8px; line-height: 20px; }
+    input[type="radio"], input[type="checkbox"] { width: auto; height: auto; }
+    fieldset { border: 1px solid #e5e6eb; border-radius: 4px; margin: 0 0 12px; padding: 12px 16px; }
+    .row { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+    .row > div { flex: 1; min-width: 160px; }
+    button, .linkbtn { background: #2f6bff; color: #fff; border: 0; border-radius: 4px; height: 32px; padding: 0 16px; cursor: pointer; text-decoration: none; display: inline-flex; align-items: center; justify-content: center; font: 12px/20px "Microsoft YaHei", "PingFang SC", sans-serif; }
+    button.secondary, .linkbtn.secondary { background: #fff; color: #4e5969; border: 1px solid #e5e6eb; }
+    button.text { background: transparent; color: #4e5969; border: 0; padding: 0 8px; }
+    button.danger { background: #fff; color: #d83931; border: 1px solid #f3c1be; }
+    button:disabled { background: #f2f3f5; color: #c9cdd4; border: 1px solid #e5e6eb; cursor: not-allowed; }
+    button.danger:disabled { background: #f7f8fa; color: #c9cdd4; border: 1px solid #e5e6eb; }
+    .actions { display: inline-flex; gap: 12px; align-items: center; justify-content: flex-end; vertical-align: middle; }
+    .actions form, .inline-form { margin: 0; padding: 0; border: 0; background: transparent; box-shadow: none; }
+    .table-wrap { overflow-x: auto; }
+    textarea.options { min-height: 120px; }
+    .question-card { border: 1px solid #eceef2; border-radius: 4px; padding: 14px; margin: 12px 0; background: #fff; }
+    .badge, .tag { display: inline-block; margin-left: 8px; padding: 0 6px; height: 20px; line-height: 20px; border-radius: 2px; background: #f2f3f5; color: #86909c; font-size: 12px; font-weight: 400; vertical-align: 1px; }
+    .cell-sub { margin-left: 8px; color: #86909c; font-weight: 400; }
+    .quiet { color: #c9cdd4; }
+    th.ops, td.ops { text-align: right; white-space: nowrap; width: 1%; padding-right: 40px; }
+    td.ops.actions { display: table-cell; }
+    td.ops > button, td.ops > .inline-form { display: inline-flex; vertical-align: middle; }
+    td.ops > button + button, td.ops > button + .inline-form, td.ops > .inline-form + button, td.ops > .inline-form + .inline-form { margin-left: 12px; }
+    td button, td .linkbtn { height: 22px; padding: 0; background: transparent; border: 0; border-radius: 2px; color: #2f6bff; }
+    td button.secondary, td button.danger, td .linkbtn.secondary { height: 22px; padding: 0; background: transparent; border: 0; }
+    td button.danger { color: #d83931; }
+    td button:disabled, td button.danger:disabled, td button.secondary:disabled { background: transparent; color: #c9cdd4; border: 0; }
+    .table-foot { display: flex; align-items: center; height: 40px; padding: 0 16px; color: #86909c; font-size: 12px; line-height: 20px; }
+    .auth-actions { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; margin: 24px 0 10px; }
+    .auth-help { max-width: 680px; margin-top: 0; }
+    .auth-error-card { max-width: 680px; margin: 40px auto; }
+    .error { background: #fff1f0; color: #d83931; padding: 8px 12px; border-radius: 4px; }
+    .ok { background: #e8ffea; color: #137333; padding: 8px 12px; border-radius: 4px; }
+    td .error { background: none; padding: 0; }
+    .banner { background: #fff7e8; border: 1px solid #ffe4ba; padding: 8px 12px; border-radius: 4px; margin-bottom: 12px; }
+    table { width: 100%; border-collapse: collapse; background: #fff; font-size: 12px; line-height: 20px; }
+    th { background: #fff; color: #86909c; font-weight: 400; font-size: 12px; text-align: left; padding: 10px 16px; border-bottom: 1px solid #f2f3f5; white-space: nowrap; }
+    td { text-align: left; padding: 12px 16px; border-bottom: 1px solid #f2f3f5; vertical-align: middle; color: #1d2129; }
+    tbody tr:hover td { background: #f7f8fa; }
+    tbody tr:last-child td { border-bottom: 0; }
+    .choice { font-weight: 400; margin: 7px 0; }
+    .critical { color: #d83931; font-weight: 600; }
+    .status { white-space: nowrap; }
+    dialog { border: 0; border-radius: 4px; padding: 0; width: min(480px, calc(100vw - 32px)); max-width: calc(100vw - 32px); text-align: left; color: #1d2129; box-shadow: 0 8px 24px rgba(31, 35, 41, .16); }
+    dialog::backdrop { background: rgba(31, 35, 41, .45); }
+    .dialog-head { display: flex; justify-content: space-between; align-items: center; height: 48px; padding: 0 16px 0 20px; border-bottom: 1px solid #f2f3f5; }
+    .dialog-head h2 { margin: 0; font-size: 14px; line-height: 22px; }
+    .dialog-body { padding: 16px 20px 20px; }
+    .dialog-form { background: transparent; border: 0; padding: 0; margin: 0; box-shadow: none; }
+    .dialog-form input, .dialog-form select, .dialog-form textarea { max-width: none; }
+    dialog .note { display: block; margin: 0 0 16px; padding: 8px 12px; background: #f7f8fa; border-radius: 4px; text-align: left; }
+    dialog label.row { display: flex; align-items: center; gap: 8px; width: auto; margin: 0; color: #1d2129; font-size: 13px; line-height: 22px; }
+    dialog label.row input { margin: 0; }
+    dialog .dialog-form > p:last-child { display: flex; justify-content: flex-end; margin: 20px 0 0; padding-top: 16px; border-top: 1px solid #f2f3f5; }
+    dialog button, dialog .linkbtn { background: #2f6bff; color: #fff; border: 0; border-radius: 4px; height: 32px; padding: 0 16px; }
+    dialog button.secondary, dialog .linkbtn.secondary { background: #fff; color: #4e5969; border: 1px solid #e5e6eb; }
+    dialog button.danger { background: #fff; color: #d83931; border: 1px solid #f3c1be; }
+    dialog button:disabled { background: #f2f3f5; color: #c9cdd4; border: 1px solid #e5e6eb; }
+    .icon-btn, dialog .icon-btn { width: 28px; height: 28px; padding: 0; justify-content: center; background: transparent; color: #4e5969; border: 0; }
+    @media (max-width: 960px) { .grid { grid-template-columns: 1fr; } .sider { width: 168px; } }
+  </style>
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="/"><svg viewBox="0 0 16 16" aria-hidden="true"><rect x="1" y="1" width="14" height="14" rx="3" fill="#2f6bff"/><path d="M4.6 8.2 6.8 10.3 11.4 5.7" fill="none" stroke="#fff" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>平台准入考试</a>
+    <span class="top-actions">
+      {% if current_user %}
+        <span class="who"><span class="avatar">{{ current_user.username[:1] }}</span>{{ current_user.username }}</span>
+        <a href="/exam">我的考试</a>
+        {% if dce_mode == 'real' %}
+          <a href="{{ dce_base_url }}/" target="_blank" rel="noopener">DCE 控制台</a>
+          <a href="/auth/login?switch=1">切换账号</a>
+        {% endif %}
+        <form class="inline-form" method="post" action="/logout">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+          <button type="submit">退出</button>
+        </form>
+      {% endif %}
+    </span>
+  </header>
+  <div class="shell">
+    {% if current_user and current_user.is_admin and admin_section %}
+    <aside class="sider">
+      <a href="/admin?view=tasks" {% if admin_section == 'tasks' %}class="active"{% endif %}><svg viewBox="0 0 16 16" aria-hidden="true"><rect x="2.5" y="2.2" width="11" height="11.6" rx="1.5"/><path d="M5 6.2h6M5 8.8h6M5 11.4h3.5"/></svg>考试任务</a>
+      <a href="/admin?view=users" {% if admin_section == 'users' %}class="active"{% endif %}><svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="5.2" r="2.1"/><path d="M3.4 13c.7-2.2 2.4-3.3 4.6-3.3s3.9 1.1 4.6 3.3"/></svg>用户</a>
+      <a href="/admin?view=packages" {% if admin_section == 'packages' %}class="active"{% endif %}><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M2.5 6.2 8 3.2l5.5 3L8 9.2z"/><path d="M2.5 6.2V10l5.5 3 5.5-3V6.2"/></svg>权限包</a>
+      <a href="/admin/exam-templates" {% if admin_section == 'papers' %}class="active"{% endif %}><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 2.2h5.2L12.6 5.6V13.8H4z"/><path d="M9 2.4V5.8h3.3M6 8.6h4M6 11h2.8"/></svg>试卷</a>
+      <a href="/admin?view=audits" {% if admin_section == 'audits' %}class="active"{% endif %}><svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="5.2"/><path d="M8 5v3.2L10.2 10"/></svg>审计</a>
+    </aside>
+    {% endif %}
+    <main class="content">
+      {% if dce_mode == 'mock' %}
+        <p class="banner"><strong>开发模拟模式：</strong>身份、用户和加组均使用本地 Mock DCE，不会连接或修改真实 DCE 5。</p>
+      {% endif %}
+      {% block body %}{% endblock %}
+    </main>
+  </div>
+  <script>
+    function openDialog(id) { document.getElementById(id).showModal(); }
+    function filterRows(input, tableId) {
+      var query = input.value.trim().toLowerCase();
+      document.querySelectorAll("#" + tableId + " tbody tr").forEach(function (row) {
+        row.hidden = !!query && row.innerText.toLowerCase().indexOf(query) === -1;
+      });
+    }
+  </script>
+</body>
+</html>
